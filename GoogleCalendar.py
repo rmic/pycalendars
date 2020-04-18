@@ -1,75 +1,70 @@
 import datetime as dt
-import pickle
-import os.path
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
-SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
-secrets_file = 'credentials.json'
-class GoogleCalendar:
 
-    def __init__(self, credentials):
+SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
+
+
+class GoogleCalendar:
+    def __init__(self, credentials, secrets_file):
+        self.secrets_file = secrets_file
         self.creds = credentials
 
-    def get_credentials(self, secrets_file):
+    def get_credentials(self):
+        # This method retrieves the credentials if they could not be provided
+        # at instanciation time.
+
         if not self.creds or not self.creds.valid:
             if self.creds and self.creds.expired and self.creds.refresh_token:
                 self.creds.refresh(Request())
             else:
-                flow = InstalledAppFlow.from_client_secrets_file(secrets_file, SCOPES)
+                flow = InstalledAppFlow.from_client_secrets_file(self.secrets_file, SCOPES)
                 self.creds = flow.run_local_server(port=0)
-            # Save the credentials for the next run
-            #with open('token.pickle', 'wb') as token:
-            #    pickle.dump(creds, token)
-            return self.creds
 
+        return self.creds
 
+    def get_events(self, cal_id, time_min, time_max, full_days_splitted=False):
+        # This method retrieves the events in the calendar identified by
+        # cal_id, that were scheduled between "time_min" and "time_max"
 
-    def fetchEvents(self, cal_id, time_min, time_max):
-            service = build('calendar', 'v3', credentials=self.creds)
+        self.get_credentials()
+        service = build('calendar', 'v3', credentials=self.creds)
 
-            page_token = None
-            result = []
-            max_date = dt.datetime.strptime(time_max[:-6], '%Y-%m-%dT%H:%M:%S')
-            while True:
-                events_result = service.events().list(calendarId=cal_id, timeMin=time_min,
-                                                      timeMax=time_max, singleEvents=True, pageToken=page_token).execute()
-                events = events_result.get('items', [])
+        page_token = None
+        result = []
+        
+        while True:
+            events_result = service.events().list(calendarId=cal_id, timeMin=time_min,
+                                                  timeMax=time_max, singleEvents=True, pageToken=page_token).execute()
+            events = events_result.get('items', [])
+            result.extend(events)
 
-                if not events:
-                    print('No upcoming events found.')
+            page_token = events_result.get('nextPageToken')
+            if not page_token:
+                return result
 
-                for event in events:
-                    start = event['start'].get('dateTime', event['start'].get('date'))
-                    end = event['end'].get('dateTime', event['end'].get('date'))
-                    if len(start) > 10:
-                        stdt = dt.datetime.strptime(start[:-6], '%Y-%m-%dT%H:%M:%S')
-                        endt = dt.datetime.strptime(end[:-6], '%Y-%m-%dT%H:%M:%S')
-                    else:
-                        stdt = dt.datetime.strptime(start, '%Y-%m-%d')
-                        endt = dt.datetime.strptime(end, '%Y-%m-%d')
+    def get_full_days_splitted_events(self, cal_id, time_min, time_max)
+        max_date = dt.datetime.strptime(time_max[:-6], '%Y-%m-%dT%H:%M:%S')
+        events = self.get_events(cal_id, time_min, time_max)
+        result = []
+        for event in events:
+            start = event['start'].get('dateTime', event['start'].get('date'))
+            end = event['end'].get('dateTime', event['end'].get('date'))
+            if len(start) > 10:
+                stdt = dt.datetime.strptime(start[:-6], '%Y-%m-%dT%H:%M:%S')
+                endt = dt.datetime.strptime(end[:-6], '%Y-%m-%dT%H:%M:%S')
+            else:
+                stdt = dt.datetime.strptime(start, '%Y-%m-%d')
+                endt = dt.datetime.strptime(end, '%Y-%m-%d')
 
-                    delta = (endt - stdt)
-                    print("Delta :" ,delta.days)
-                    for i in range(delta.days):
-                        dayDate = stdt + dt.timedelta(days=i)
-                        # No need to count days after the end of the specified period
-                        print(dayDate, max_date)
-                        if (dayDate <= max_date):
-                            result.append((dayDate, event['summary']))
-                            # print(str(dayDate), event['summary'])
-                        else:
-                            break
+            delta = (endt - stdt)
+            for i in range(delta.days):
+                day_date = stdt + dt.timedelta(days=i)
 
-                page_token = events_result.get('nextPageToken')
-                if not page_token:
-                    return result
+                if day_date <= max_date:
+                    result.append((day_date, event['summary']))
+                else:
+                    break
 
-#def get_events():
-#    YEAR="2020"
-#    MONTH="04"
-#    LAST_DAY="30"
-#    events = GoogleCalendar.fetchEvents("raph.mic@gmail.com", f"{YEAR}-{MONTH}-01T00:00:00+01:00", f"{YEAR}-{MONTH}-{LAST_DAY}T23:59:59+01:00")
-#    return events
-
-#print(get_events())
+        return result
