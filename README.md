@@ -2,6 +2,13 @@
 
 PyCalendars helps you to retrieve events from your Google and ICloud calendars, in python.
 
+
+## Installing 
+
+Using pip :
+
+```pip install pycalendars```
+
 ## Getting Started
 
 ### Google calendar
