@@ -9,6 +9,10 @@ Using pip :
 
 ```pip install pycalendars```
 
+Using conda : 
+
+```conda install -c rmic pycalendars```
+
 ## Getting Started
 
 ### Google calendar
